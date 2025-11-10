@@ -1,21 +1,18 @@
 # Modelsaur
 Clay Deformation on a Simple Sphere
 
-Multiplatform:
-- cmake build
+Multiplatform C++:
 - Linux OGL1 / OGLES2
-- Android (deprecated ATM)
+- Android NDK & JNI (currently unbuildable due to NDK issues)
 
 Features:
-- Multitouch
+- Multitouch pinch to zoom (requires a tablet on Linux)
 - Proper Quaternion Transforms
-- 3 different deformation tool sizes
-- 3 different deformation tools: In, Out and InOut
+- 3 different deformation tools and sizes
 - Triangle coloring from custom palette
 - Pleasant animated rotation feature
 - Export to PNG, GIF, STL
 - Hidden features to generate alternate non-sphere geometries
-- Text is rendered using custom font system https://github.com/orthopteroid/gewellt-eight
 
 Build Dependencies:
 - libpng-dev for png support
@@ -26,8 +23,14 @@ Build Dependencies:
 - libpng-1.6.34 (included) to export png on android
 
 Interesting Things to note in the code:
-- png graphical assests are baked into linkable object code files - see AppTexture::LoadResource(...)
-- a system that bridges system and gui events across the JNI - see ... somewhere!
+- ./src/Android and ./src/linux are the platform specific c++ components
+- ./android is the java compnents needed for Android
+- the main app loop is app_main() in ./src/App.cpp
+- png graphical assests are baked into linkable object code files using `/usr/bin/ld` and extracted via the `ACCESS_RESOURCE` macro and AppTexture::LoadResource(...)
+- platform independent event handling is via a functor, passed into AppEvent(...)
+- As a convienience during development AppKeyboard held much of the app and controller state. This allowed a physical keyboard to control the app but required translation logic (implemented in AppEvent(...)) for Android. However, AppEvent(...) also handles some non-keyboard messages on Linux (like window adornment events). Not a perfect world.
+- hashed ID based state serializer class AppML. Presently only used for storing the tutorial mode's completion state.
+- text is rendered using the OGL1 friendly (but eye unfriendly) triangle shapes from https://github.com/orthopteroid/gewellt-eight
 
 Start screen on linux
 
