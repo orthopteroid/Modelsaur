@@ -25,6 +25,10 @@ Build Dependencies:
 - libpng-1.6.26 (included) to export png on linux
 - libpng-1.6.34 (included) to export png on android
 
+Start screen on linux
+
+<img width="610" height="430" alt="Screenshot_2025-11-09_16-40-10" src="https://github.com/user-attachments/assets/27f196e5-a82c-460b-95ed-12352871774d" />
+
 Menu with a completed model
 
 <img width="600" height="400" alt="GNHO8178-menu" src="https://github.com/user-attachments/assets/70b812be-6975-455a-9e0f-73bd9100bb90" />
