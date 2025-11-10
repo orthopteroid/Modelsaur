@@ -20,8 +20,10 @@ Features:
 Build Dependencies:
 - libpng-dev for png support
 - libmt-dev for multitouch support
-- glm-0.9.7.6 for matrix math
-- giflib-5.1.4 to export gif
+- glm-0.9.7.6 (included) for matrix math
+- giflib-5.1.4 (included) to export gif
+- libpng-1.6.26 (included) to export png on linux
+- libpng-1.6.34 (included) to export png on android
 
 Menu with a completed model
 
@@ -35,3 +37,4 @@ Exported as a rotating animated gif
 
 It can also be exported as STL.
 
+Copyright 2025 orthopteroid@gmail.com except for external dependencies or code where noted.

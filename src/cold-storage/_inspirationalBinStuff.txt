@@ -1,0 +1,311 @@
+#else
+            glm::vec3 vecDelta(posTouch - posLastTouch);
+            float touchLen = std::sqrt(vecDelta.x *vecDelta.x+ vecDelta.y* vecDelta.y);
+            if(std::fabs(touchLen) > .25f) //std::numeric_limits<float>::epsilon() ) // perhaps be .5 ??
+            {
+                glm::vec3 posA, touchA = posLastTouch;
+                glReadPixels( int(touchA.x), int(touchA.y), 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &touchA.z );
+                posA = glm::unProject(
+                    glm::vec3( touchA.x, platform.height - touchA.y, touchA.z ), // note: reversed Y
+                    mxView, mxProj, boxViewport
+                );
+                auto binA = bin_make(posA, binDimension);
+
+                glm::vec3 posB, touchB = posTouch;
+                glReadPixels( int(touchB.x), int(touchB.y), 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &touchB.z );
+                posB = glm::unProject(
+                    glm::vec3( touchB.x, platform.height - touchB.y, touchB.z ), // note: reversed Y
+                    mxView, mxProj, boxViewport
+                );
+                auto binB = bin_make(posB, binDimension);
+
+                /////////////////
+                // interpolate between A and B
+
+                BinSet uniqueBins;
+
+                auto fnAddUnique = [&uniqueBins] (bin_type b) -> bool
+                {
+                    if(uniqueBins.find(b)!=uniqueBins.end())
+                        return false;
+
+                    printf("%04X ", b);
+                    uniqueBins.insert(b);
+                    return true;
+                };
+
+                auto division = glm::vec3(posB - posA);
+                float lengthAB = glm::length( division );
+                bool uniqueFound;
+                do {
+                    uniqueFound = false;
+                    glm::vec3 pos = posA;
+                    do
+                    {
+                        pos += division;
+                        uniqueFound |= fnAddUnique( bin_make( pos, binDimension ) );
+                    } while( glm::length( glm::vec3(posA - pos) ) <= lengthAB );
+                    division /= 2.f;
+                } while( uniqueFound );
+
+                /////////////////
+                // examine bins for intersecting tris
+
+                for( BinSet::const_iterator uniqueIter = uniqueBins.begin(); uniqueIter != uniqueBins.end(); ++uniqueIter )
+                {
+                    for( BinMap::const_iterator iter = binTris.find( *uniqueIter ); iter != binTris.end(); ++iter )
+                    {
+                        uint t = iter->second;
+                        uint p0 = t + 0, p1 = t + 1, p2 = t + 2; // all to are ccw, all te are cw
+                        if( !( t & 1 )) std::swap( p0, p1 ); // swap te to make all ccw
+
+                        glm::vec3 normCursor( glm::normalize( posInterpolated - posCamera ));
+                        glm::vec3 barycentric;
+                        bool interesct = glm::intersectRayTriangle<glm::vec3>(
+                            posCamera, normCursor,
+                            helix.posVerts[p0], helix.posVerts[p1], helix.posVerts[p2],
+                            barycentric
+                        );
+                        if( interesct )
+                        {
+                            helix.colorVerts[p2] = paintColor; // last vert makes the color
+                            helix.UpdateColors();
+                            uniqueIter = uniqueBins.end(); // to leave outer loop
+                            break;
+                        }
+                    }
+                }
+            }
+            posLastTouch = posTouch;
+#endif
+
+////////////////////
+
+/*
+    // compare with nearby bins...
+    // deal with duplicates somehow... :/
+    // we should be close, unless there is some kind of rounding/sign prob with the bin numbering... :/
+    for(int8_t d=1;d<=3;d++) //binDimension
+    {
+        // major axis...
+        if(!fnScan(-d,0) || !fnScan(+d,0) || !fnScan(0,-d) || !fnScan(0,+d))
+        {
+            printf("%1X",d);
+            return;
+        }
+
+        // off-axis...
+        for(int8_t i=1;i<d;i++)
+        {
+            if(
+                !fnScan(-d,-i) || !fnScan(-d,+i) ||
+                !fnScan(+d,-i) || !fnScan(+d,+i) ||
+                !fnScan(-i,-d) || !fnScan(-i,+d) ||
+                !fnScan(+i,-d) || !fnScan(+i,+d)
+            )
+            {
+                printf("%1X",d);
+                return;
+            }
+        }
+    }
+*/
+
+//////////////////
+
+#if false
+struct SphereTiling
+{
+    using bin_type = uint16_t;
+    using tile_type = glm::tvec2<uint8_t>;
+    using PolarBinType = std::multimap<bin_type, size_t /* triangle */ >;
+
+    struct ScanIterator
+    {
+        short step = 0;
+        short delta = 0;
+        short twist = 0;
+    };
+
+    uint8_t binDimension = 16; // sphere broken into hexacants
+    PolarBinType polarBins;
+
+    bin_type CalcBin(tile_type const posPolarU8, int8_t dx, int8_t dy)
+    {
+        return (uint8_t(posPolarU8.x+dx) % binDimension) << 8 | (uint8_t(posPolarU8.y+dy) % binDimension);
+    }
+    tile_type CalcTile(glm::vec3 const & pos)
+    {
+        float r = pos.glLength();
+        float lon = std::acos(pos.x / std::sqrt(pos.x * pos.x + pos.y * pos.y)) * (pos.y < 0 ? -1 : 1);
+        float lat = std::acos(pos.z / r);
+        return tile_type( (lon + M_PI) * float(255) / (2*M_PI), (lat + M_PI) * float(255) / (2*M_PI) );
+    }
+
+    //void ReTile();
+    void Next(tile_type const startTile, ScanIterator & iter, std::function<bool(uint tri)> fnTriMatchContinue)
+    {
+        auto fnScan = [&] (int8_t dx, int8_t dy) -> bool
+        {
+            bin_type bin = CalcBin( startTile, dx, dy );
+            for( PolarBinType::const_iterator iter = polarBins.find( bin ); iter != polarBins.end(); ++iter )
+            {
+                if( !fnTriMatchContinue( iter->second ) )
+                {
+                    return false; // stop
+                }
+            }
+            return true; // keep looking
+        };
+
+        bool bContinue;
+        switch(iter.step)
+        {
+            case 0:
+                bContinue = fnScan(0,0);
+                iter.step++;
+                iter.delta = 1;
+                iter.twist = 0;
+                break;
+            case 1:
+                bContinue = fnScan(-iter.delta,+iter.twist);
+                iter.step++;
+                break;
+            case 2:
+                bContinue = fnScan(+iter.delta,+iter.twist);
+                iter.step++;
+                break;
+            case 3:
+                bContinue = fnScan(+iter.twist,-iter.delta);
+                iter.step++;
+                break;
+            case 4:
+                bContinue = fnScan(+iter.twist,+iter.delta);
+                iter.step = 1;
+                iter.twist++;
+                if(iter.twist > iter.delta)
+                {
+                    iter.twist = 0;
+                    iter.delta++;
+                }
+                if(iter.delta > 3) bContinue = false;
+                break;
+        }
+        return bContinue;
+    }
+};
+#endif
+
+////////////
+
+// https://gamedev.stackexchange.com/a/60631/107352
+// http://www.ics.uci.edu/~eppstein/junkyard/circumcenter.html
+glm::vec3 circumcenter(glm::vec3 const & a, glm::vec3 const & b, glm::vec3 const & c)
+{
+    glm::vec3 ac = c - a ;
+    glm::vec3 ab = b - a ;
+    glm::vec3 abXac = glm::cross( ab, ac ) ;
+
+    // this is the vector from a TO the circumsphere center
+    glm::vec3 toCircumsphereCenter = (glm::cross( abXac, ab )*glm::dot(ac,ac) + glm::cross( ac, abXac )*glm::dot(ab,ab)) / (2.f*glm::dot(abXac,abXac)) ;
+    float circumsphereRadius = glm::length( toCircumsphereCenter );
+    return glm::vec3(a  +  toCircumsphereCenter);
+}
+
+//////////////
+
+    typedef uint8_t page_type;
+    std::set<page_type> dirtyPages;
+
+    template< class VecType>
+    void markDirty(VecType const & vecVec, uint i)
+    {
+        const ulong typeSize = sizeof(typename VecType::value_type);
+        ulong pageSize = 1 + typeSize * vecVec.size() / std::numeric_limits<page_type>::max();
+        ulong byte0 = i * typeSize;
+        ulong byte1 = i + typeSize -1;
+        dirtyPages.insert( page_type(byte0 / pageSize) );
+        dirtyPages.insert( page_type(byte1 / pageSize) );
+    }
+
+
+        helix.dirtyPages.clear();
+        triID_type strokes = 0;
+        strokableHelix.Stroke(
+            posCamera,
+            [&platform, &mxView, &mxProj, &boxViewport](glm::vec3 pos) -> glm::vec3 {
+                glm::vec3 posRevY( pos.x, platform.height - pos.y, pos.z );
+                auto projectedPoint = glm::unProject( posRevY, mxView, mxProj, boxViewport ); // on near plane
+                return projectedPoint;
+            },
+            [&helix, &paintColor, &strokes](triID_type triID) {
+                helix.colorVerts[triID + 2] = paintColor; // last vert makes the color
+                helix.markDirty(helix.colorVerts, triID + 2);
+                strokes++;
+            },
+            100 // tuning parm: lower for more interactiveness
+        );
+        if( strokes )
+        {
+            //helix.UpdateColors();
+            for( auto iter = helix.dirtyPages.begin(); iter != helix.dirtyPages.end(); ++iter) printf("%d ", *iter);
+            putchar('\n');
+        }
+
+/////////////////
+
+uint8_t *pixels = new uint8_t[w * h * 3];
+// copy pixels from screen
+glBindTexture(GL_TEXTURE_2D, screenTex);
+glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+glPixelStorei(GL_PACK_ALIGNMENT, 1);
+glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid *)pixels);
+
+save_png_libpng(const char *filename, uint8_t *pixels, int w, int h)
+{
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png)
+        return false;
+
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+
+    FILE *fp = fopen(filename, "wb");
+    if (!fp) {
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+
+    png_init_io(png, fp);
+    png_set_IHDR(png, info, w, h, 8 /* depth */, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+        PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
+    // optional?
+    png_colorp palette = (png_colorp)png_malloc(png, PNG_MAX_PALETTE_LENGTH * sizeof(png_color));
+    if (!palette) {
+        fclose(fp);
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+    png_set_PLTE(png, info, palette, PNG_MAX_PALETTE_LENGTH);
+    png_write_info(png, info);
+    png_set_packing(png);
+
+    png_bytepp rows = (png_bytepp)png_malloc(png, h * sizeof(png_bytep));
+    for (int i = 0; i < h; ++i)
+        rows[i] = (png_bytep)(pixels + ((h-1) - i) * w * 3);
+
+    png_write_image(png, rows);
+    png_write_end(png, info);
+    png_free(png, palette); // ??
+    png_destroy_write_struct(&png, &info);
+
+    fclose(fp);
+    delete[] rows;
+    return true;
+}
+
+//////////////////
