@@ -25,6 +25,10 @@ Build Dependencies:
 - libpng-1.6.26 (included) to export png on linux
 - libpng-1.6.34 (included) to export png on android
 
+Interesting Things to note in the code:
+- png graphical assests are baked into linkable object code files - see AppTexture::LoadResource(...)
+- a system that bridges system and gui events across the JNI - see ... somewhere!
+
 Start screen on linux
 
 <img width="610" height="430" alt="Screenshot_2025-11-09_16-40-10" src="https://github.com/user-attachments/assets/27f196e5-a82c-460b-95ed-12352871774d" />
