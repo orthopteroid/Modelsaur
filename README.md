@@ -15,7 +15,6 @@ Features:
 - Hidden features to generate alternate non-sphere geometries
 
 Build Dependencies:
-- libpng-dev for png support
 - libmt-dev for multitouch support
 - glm-0.9.7.6 (included) for matrix math
 - giflib-5.1.4 (included) to export gif
