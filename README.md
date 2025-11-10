@@ -1,9 +1,9 @@
 # Modelsaur
-Clay Deformation on a Simple Sphere
+Clay Deformation on a Simple Sphere, ca 2018
 
 Multiplatform C++:
 - Linux OGL1 / OGLES2
-- Android NDK & JNI (currently unbuildable due to NDK issues)
+- Android NDK & JNI (currently unbuildable due to old NDK issues)
 
 Features:
 - Multitouch pinch to zoom (requires a tablet on Linux)
